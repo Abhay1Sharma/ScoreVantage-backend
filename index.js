@@ -466,9 +466,11 @@ import mongoose from "mongoose";
 import nodemailer from "nodemailer";
 import session from "express-session";
 import LocalStrategy from "passport-local";
-import { User } from "./src/Models/UserModel.js";
-import { jwtAuthMiddleware, generateToken } from "./jwt.js";
+import { storage } from "./cloudinary.js";
 import { GoogleGenAI } from "@google/genai";
+import { User } from "./src/Models/UserModel.js";
+import { JobData } from "./src/Models/JobModel.js";
+import { jwtAuthMiddleware, generateToken } from "./jwt.js";
 
 // 🛠️ Safe ES-Module bypass for pdf-parse package wrapper
 import pdf from "pdf-parse/lib/pdf-parse.js";
@@ -484,7 +486,7 @@ const dashboadUrl = process.env.DASHBOARD_URL;
 const password = process.env.APP_GMAIL_PASSWORD;
 
 // Instantiate the Gemini SDK client
-const groqAi = new Groq({ apiKey: process.env.GROQ_API});
+const groqAi = new Groq({ apiKey: process.env.GROQ_API });
 const ai = new GoogleGenAI({ apiKey: process.env.REACT_APP_BOT_API });
 
 // Global helper for backoff delays
@@ -500,6 +502,12 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 } // Set boundary ceiling to 50MB
 });
+
+const logoUpload = multer({
+    storage: storage,
+    limits: { fileSize: 50 * 1024 * 1024 } // Set boundary ceiling to 50MB
+});
+
 
 // --- TRANSPORTER ---
 const transporter = nodemailer.createTransport({
@@ -870,6 +878,13 @@ app.post("/api/reset-password", async (req, res) => {
 // --- TEXT PARSING ROUTE ---
 app.post("/getText", upload.single("pdfFile"), async (req, res) => {
     try {
+        const jobRole = req.body.jobRole && req.body.jobRole.trim() !== ""
+            ? req.body.jobRole
+            : null;
+
+        console.log("Sanitized Job Role:", jobRole);
+        console.log(req.file);
+
         if (!req.file) {
             return res.status(400).json({ error: "No file object detected." });
         }
@@ -890,32 +905,34 @@ app.post("/getText", upload.single("pdfFile"), async (req, res) => {
             try {
                 const response = await groqAi.chat.completions.create({
                     // FIXED THE CRASHING MODEL ID STRINGS HERE:
-                    model: "openai/gpt-oss-120b", 
+                    model: "openai/gpt-oss-120b",
                     messages: [
                         {
                             role: "user",
-                            content: `You are an ATS resume analyzer. Return ONLY valid JSON. No markdown formatting, no extra explanations.
-
-Return feedback by replacing the JSON content structure:
+                            content: `You are an ATS resume analyzer your work is to check whether the resume content is good for the selected ${jobRole} job and give score respectively. Return ONLY valid JSON. No markdown formatting, no extra explanations.
+Mostly you give same ats score for all type of pdf content correct it on your own
+Return feedback by replacing the JSON content with the real feedback structure and give the correct/strict ats score not give different different score 
+when user upload it again and again without updated it yes you can give different different ats score when user update its resume:
+-Strict Rule: if the content not as per the selected job role than give the feedback and ats score less than expected.
 {
-    "atsScore": 84,
+    "atsScore": '',
     "atsBreakdown": {
-        "formatStructure": 92,
-        "keywordDensity": 79,
-        "experienceImpact": 88,
-        "coreTechSkills": 76
+        "formatStructure": '',
+        "keywordDensity": '',
+        "experienceImpact": '',
+        "coreTechSkills": ''
     },
     "keywords": {
-        "matched": ["Product strategy", "Agile leadership"],
-        "gaps": ["SQL analytics", "A/B testing"]
+        "matched": ["", ""],
+        "gaps": ["", ""]
     },
     "structuralInsights": [
-        {"type": "positive", "title": "Clean ATS layout", "description": "No columns, standard fonts."}
+        {"type": "positive", "title": "", "description": "No columns, standard fonts."}
     ],
     "candidateProfile": {
-        "name": "John Doe",
-        "title": "Product Manager",
-        "experience": "5 yrs",
+        "name": "",
+        "title": "",
+        "experience": "",
         "atsReadiness": "84%",
         "keywordMatchRate": "18/22",
         "formattingScore": "92%",
@@ -968,22 +985,81 @@ ${resumeText}`
     }
 });
 
-// Simple JSON extractor
-function extractJSON(text) {
-    // Remove markdown
-    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    // Find JSON
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}') + 1;
-    
-    if (start === -1 || end === 0) {
-        throw new Error('No JSON found');
+app.post("/loggedUser", async (req, res) => {
+    try {
+        const { Id } = req.body;
+        const user = await User.findById({ _id: Id });
+        res.status(200).json({ message: "User Data ", user });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Something occurs " })
     }
-    
-    const jsonString = text.substring(start, end);
-    return JSON.parse(jsonString);
-}
+})
+
+app.post("/sumbitJobData", logoUpload.single("companyLogo"), async (req, res) => {
+    try {
+        const logoFile = req.file.path;
+        const { links, skills, benefits,
+            location, job_title, department, applyLink,
+            expiry_date, responsibilities, companyName,
+            health_insurance } = req.body;
+
+        const newJob = await JobData({
+            links: links, skills: skills, benefits: benefits,
+            location: location, job_title: job_title, department: department, applyLink: allpyLink,
+            expiryDate: expiry_date, responsibilities: responsibilities, healthInsurance: health_insurance,
+            companyName: companyName, companyLogo: logoFile
+        }).save();
+
+        console.log(newJob);
+        res.status(200).json({ message: "Job Added Successfully", newJob });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Some error occured " });
+    }
+});
+
+app.get("/alljobs", async (req, res) => {
+    try {
+        const allJobs = await JobData.find({});
+        console.log(allJobs);
+        res.status(200).json({ message: "All Jobs data received", allJobs });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Some Internal error", error});
+    }
+})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --- DATABASE CONNECTION & ASYNC INITIALIZATION ---
 async function main() {
@@ -1000,3 +1076,20 @@ main()
     .catch((err) => {
         console.error("Database Connection Error ❌", err);
     });
+
+// Simple JSON extractor
+function extractJSON(text) {
+    // Remove markdown
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    // Find JSON
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}') + 1;
+
+    if (start === -1 || end === 0) {
+        throw new Error('No JSON found');
+    }
+
+    const jsonString = text.substring(start, end);
+    return JSON.parse(jsonString);
+}
