@@ -13,7 +13,7 @@ const storage = new CloudinaryStorage({
     return {
       folder: 'AI_Resume_Pro/user_content', // Your App Folder
       resource_type: 'auto',                // This handles pdf + docx
-      allowed_formats: ['pdf', 'docx', "png", "jpg", "svg", "xml", "svg+xml"],
+      allowed_formats: ['pdf', 'docx', "png", "jpg", "svg", "xml", "svg+xml, WEBP"],
       public_id: `file_${Date.now()}`,      // Unique name
     };
   },

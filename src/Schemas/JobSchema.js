@@ -1,10 +1,21 @@
-import { Schema } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const jobSchema = new Schema(
     {
+        jobCreatedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "user",
+            required: true,
+        },
+
         job_title: {
             type: String,
             required: true,
+        },
+
+        applyLink: {
+            type: String,
+            require: true,
         },
 
         skills: {
@@ -38,11 +49,6 @@ const jobSchema = new Schema(
         },
 
         companyLogo: {
-            type: String,
-            required: true,
-        },
-
-        applyLink: {
             type: String,
             required: true,
         },

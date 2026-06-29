@@ -999,30 +999,28 @@ app.post("/loggedUser", async (req, res) => {
 app.post("/sumbitJobData", logoUpload.single("companyLogo"), async (req, res) => {
     try {
         const logoFile = req.file.path;
-        const { links, skills, benefits,
-            location, job_title, department, applyLink,
+        const { links, skills, benefits,employeeType,
+            location, job_title, department,jobCreatedBy,
             expiry_date, responsibilities, companyName,
             health_insurance } = req.body;
 
         const newJob = await JobData({
-            links: links, skills: skills, benefits: benefits,
-            location: location, job_title: job_title, department: department, applyLink: allpyLink,
+            applyLink: links, skills: skills, benefits: benefits, employeeType: employeeType,
+            location: location, job_title: job_title, department: department,jobCreatedBy: jobCreatedBy,
             expiryDate: expiry_date, responsibilities: responsibilities, healthInsurance: health_insurance,
             companyName: companyName, companyLogo: logoFile
         }).save();
-
-        console.log(newJob);
+        
         res.status(200).json({ message: "Job Added Successfully", newJob });
     } catch (error) {
         console.log(error);
-        res.status(500).json({ message: "Some error occured " });
+        res.status(500).json({ message: "Some error occured " }, err);
     }
 });
 
 app.get("/alljobs", async (req, res) => {
     try {
         const allJobs = await JobData.find({});
-        console.log(allJobs);
         res.status(200).json({ message: "All Jobs data received", allJobs });
     } catch (error) {
         console.log(error);
